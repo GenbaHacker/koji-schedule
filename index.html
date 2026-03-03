@@ -555,7 +555,7 @@ function getSortedTasks() {
   if(sortKey==='none') return arr;
   const cmp1=getCmp(sortKey);
   const cmp2=sortKey2!=='none'?getCmp(sortKey2):null;
-  const cmp3=sortKey3!=='none'&&sortKey3!==sortKey2?getCmp(sortKey3):null;
+  const cmp3=sortKey3!=='none'&&sortKey3!==sortKey2&&sortKey3!==sortKey?getCmp(sortKey3):null;
   return arr.sort((a,b)=>{
     const r=cmp1(a,b);
     const r2=cmp2?(r!==0?r:cmp2(a,b)):r; return (r2!==0||!cmp3)?r2:cmp3(a,b);
@@ -1018,10 +1018,19 @@ document.querySelectorAll('.scale-btn').forEach(btn=>{
     btn.classList.add('active');scale=btn.dataset.scale;initViewStart();render();
   });
 });
-document.getElementById('sortSelect').addEventListener('change',e=>{sortKey=e.target.value;render();});
-document.getElementById('sortSelect2').addEventListener('change',e=>{sortKey2=e.target.value;render();});
-document.getElementById('sortSelect3').addEventListener('change',e=>{sortKey3=e.target.value;render();});
+document.getElementById('sortSelect').addEventListener('change',e=>{
+  sortKey=e.target.value;
+  if(sortKey2===sortKey){sortKey2='none';document.getElementById('sortSelect2').value='none';}
+  if(sortKey3===sortKey){sortKey3='none';document.getElementById('sortSelect3').value='none';}
+  render();
+});
 document.getElementById('prevBtn').addEventListener('click',()=>navigate(-1));
+document.getElementById('sortSelect2').addEventListener('change',e=>{
+  sortKey2=e.target.value;
+  if(sortKey3===sortKey2&&sortKey3!=='none'){sortKey3='none';document.getElementById('sortSelect3').value='none';}
+  render();
+});
+document.getElementById('sortSelect3').addEventListener('change',e=>{sortKey3=e.target.value;render();});
 document.getElementById('nextBtn').addEventListener('click',()=>navigate(1));
 document.getElementById('todayBtn').addEventListener('click',goToday);
 document.getElementById('gasSettingBtn').addEventListener('click',openGasModal);
