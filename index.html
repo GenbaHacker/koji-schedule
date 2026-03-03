@@ -262,6 +262,17 @@ textarea:focus{border-color:var(--accent);}
       <option value="end">完了日</option>
     </select>
   </div>
+    <span style="font-size:9px;color:var(--text-sub);padding:0 2px">▶</span>
+    <select id="sortSelect3">
+      <option value="none">なし</option>
+      <option value="co">工事会社</option>
+      <option value="sales">自社担当</option>
+      <option value="eng">工務担当</option>
+      <option value="area">エリア</option>
+      <option value="power">受電</option>
+      <option value="start">着工日</option>
+      <option value="end">完了日</option>
+    </select>
   <div class="spacer"></div>
   <span class="count-badge" id="countBadge">0 件</span>
   <div class="gas-status">
@@ -407,6 +418,7 @@ let tasks = [];
 let sortKey = 'none';
 let sortKey2 = 'none';
 let scale = '2weeks';
+let sortKey3 = 'none';
 let viewStart = null;
 let selectedCol = null;
 let dragState = null;
@@ -543,9 +555,10 @@ function getSortedTasks() {
   if(sortKey==='none') return arr;
   const cmp1=getCmp(sortKey);
   const cmp2=sortKey2!=='none'?getCmp(sortKey2):null;
+  const cmp3=sortKey3!=='none'&&sortKey3!==sortKey2?getCmp(sortKey3):null;
   return arr.sort((a,b)=>{
     const r=cmp1(a,b);
-    return (r!==0||!cmp2)?r:cmp2(a,b);
+    const r2=cmp2?(r!==0?r:cmp2(a,b)):r; return (r2!==0||!cmp3)?r2:cmp3(a,b);
   });
 }
 
@@ -994,6 +1007,7 @@ document.querySelectorAll('.th-cell.sortable').forEach(th=>{
   th.addEventListener('click',()=>{
     sortKey=sortKey===th.dataset.sort?'none':th.dataset.sort;
     if(sortKey2===sortKey) { sortKey2='none'; document.getElementById('sortSelect2').value='none'; }
+    if(sortKey3===sortKey) { sortKey3='none'; document.getElementById('sortSelect3').value='none'; }
     document.getElementById('sortSelect').value=sortKey;
     render();
   });
@@ -1006,6 +1020,7 @@ document.querySelectorAll('.scale-btn').forEach(btn=>{
 });
 document.getElementById('sortSelect').addEventListener('change',e=>{sortKey=e.target.value;render();});
 document.getElementById('sortSelect2').addEventListener('change',e=>{sortKey2=e.target.value;render();});
+document.getElementById('sortSelect3').addEventListener('change',e=>{sortKey3=e.target.value;render();});
 document.getElementById('prevBtn').addEventListener('click',()=>navigate(-1));
 document.getElementById('nextBtn').addEventListener('click',()=>navigate(1));
 document.getElementById('todayBtn').addEventListener('click',goToday);
