@@ -132,6 +132,7 @@ body{font-family:'Noto Sans JP',sans-serif;background:var(--bg);color:var(--text
 .bar-label{font-size:9px;font-weight:600;color:rgba(255,255,255,.92);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;pointer-events:none;flex:1;}
 .bar-resize{position:absolute;right:0;top:0;bottom:0;width:6px;cursor:ew-resize;border-radius:0 4px 4px 0;background:rgba(255,255,255,.2);}
 .bar-resize:hover{background:rgba(255,255,255,.4);}
+.contract-marker{position:absolute;top:2px;width:9px;height:9px;background:#f59e0b;transform:rotate(45deg);z-index:6;border:1.5px solid #fff;box-shadow:0 1px 3px rgba(0,0,0,.25);pointer-events:auto;cursor:default;}
 
 /* Today line */
 .today-line{position:absolute;top:0;bottom:0;width:2px;background:var(--today);z-index:15;pointer-events:none;}
@@ -353,7 +354,7 @@ textarea:focus{border-color:var(--accent);}
     <div class="modal-body">
       <div class="info-box blue">
         <strong>手順：</strong> データ行をコピー（Ctrl+C）→ 下に貼り付け（Ctrl+V）→ 読み込む<br>
-        <strong>使用列：</strong> D(案件名) F(受電) H(エリア) I(自社担当) K(工務担当) M(工事会社) T(着工) U(完工)
+        <strong>使用列：</strong> D(案件名) F(受電) H(エリア) I(自社担当) K(工務担当) M(工事会社) S(契約予定日) T(着工) U(完工)
       </div>
       <textarea id="pasteArea" placeholder="ここにスプレッドシートのデータを貼り付け..."></textarea>
     </div>
@@ -382,8 +383,8 @@ textarea:focus{border-color:var(--accent);}
 
 <script>
 // ─── Column mapping (0-indexed) ────────────────────────────────────
-// C=2(案件名), E=4(受電), G=6(エリア), H=7(営業担当), J=9(工務担当), L=11(工事会社), T=19(着工予定), U=20(完工予定)
-const COL = { name:3, power:5, area:7, sales:8, eng:10, co:12, start:19, end:20 }; // D=3,F=5,H=7,I=8,K=10,M=12,T=19,U=20
+// C=2(案件名), E=4(受電), G=6(エリア), H=7(営業担当), J=9(工務担当), L=11(工事会社), S=18(契約予定日), T=19(着工予定), U=20(完工予定)
+const COL = { name:3, power:5, area:7, sales:8, eng:10, co:12, contract:18, start:19, end:20 }; // D=3,F=5,H=7,I=8,K=10,M=12,S=18(契約),T=19(着工),U=20(完工)
 
 const COLORS = [
   '#3b82f6','#10b981','#f59e0b','#ef4444','#8b5cf6','#06b6d4',
@@ -427,6 +428,7 @@ const GAS_CODE = `function doGet(e) {
       const sales = row[8];   // I列: 自社担当
       const eng   = row[10];  // K列: 工務担当
       const co    = row[12];  // M列: 工事会社
+      const contract = row[18];  // S列: 契約予定日
       const start = row[19];  // T列: 着工予定
       const end   = row[20];  // U列: 完工予定
 
@@ -444,6 +446,7 @@ const GAS_CODE = `function doGet(e) {
         co:    String(co    || ''),
         start: Utilities.formatDate(s,  'Asia/Tokyo', 'yyyy-MM-dd'),
         end:   Utilities.formatDate(e2, 'Asia/Tokyo', 'yyyy-MM-dd'),
+        contract: contract && !isNaN(contract instanceof Date ? contract : new Date(contract)) ? Utilities.formatDate(contract instanceof Date ? contract : new Date(contract), 'Asia/Tokyo', 'yyyy-MM-dd') : '',
       });
     }
 
@@ -690,7 +693,12 @@ function renderChart() {
       const left=diffDays(viewStart,task.start)*cw, width=Math.max((diffDays(task.start,task.end)+1)*cw,3);
       barHtml=`<div class="gantt-bar" data-id="${task.id}" style="left:${left}px;width:${width}px;background:${task.color}"><span class="bar-label">${cw>=14?task.name:''}</span><div class="bar-resize" data-id="${task.id}"></div></div>`;
     }
-    return `<div class="chart-row${i%2?'':' even'}">${cellsHtml}${barHtml}</div>`;
+    let contractHtml='';
+    if(task.contract&&task.contract>=viewStart&&task.contract<=viewEnd){
+      const cl=diffDays(viewStart,task.contract)*cw+cw/2-5;
+      contractHtml=`<div class="contract-marker" style="left:${cl}px" title="契約予定：${fmt(task.contract)}"></div>`;
+    }
+    return `<div class="chart-row${i%2?'':' even'}">${cellsHtml}${contractHtml}${barHtml}</div>`;
   }).join('');
   attachBarEvents(); updateTodayLine(); syncScroll();
 }
@@ -774,6 +782,7 @@ function showTip(e){
   const dur=diffDays(task.start,task.end)+1;
   const tt=document.getElementById('tooltip');
   tt.innerHTML=`<strong>${task.name}</strong><br>`
+    +(task.contract?`契約予定：${fmt(task.contract)}<br>`:'')
     +`着工：${fmt(task.start)}　完了：${fmt(task.end)}　期間：${dur}日<br>`
     +(task.area?`エリア：${task.area}<br>`:'' )
     +(task.sales?`営業：${task.sales}`:'' )+(task.eng?`　工務：${task.eng}`:'')+'<br>'
@@ -792,7 +801,7 @@ function parseTSV(text){
     if(c.length<21)return;
     const name=c[COL.name]?.trim(), start=parseDate(c[COL.start]?.trim()), end=parseDate(c[COL.end]?.trim());
     if(!name||!start||!end||start>end)return;
-    result.push({id:Date.now().toString()+Math.random(),name,start,end,
+    result.push({id:Date.now().toString()+Math.random(),name,start,end,contract:parseDate(c[COL.contract]?.trim())||null,
       area:c[COL.area]?.trim()||'', sales:c[COL.sales]?.trim()||'',
       eng:c[COL.eng]?.trim()||'', co:c[COL.co]?.trim()||'',
       power:c.length>COL.power?c[COL.power]?.trim()||'':'',
@@ -837,7 +846,7 @@ async function syncFromGAS(){
     let ci=0;
     tasks=json.data.map(r=>({
       id:Date.now().toString()+Math.random(),
-      name:r.name, area:r.area||'', sales:r.sales||'', eng:r.eng||'', co:r.co||'', power:r.power||'',
+      name:r.name, area:r.area||'', sales:r.sales||'', eng:r.eng||'', co:r.co||'', power:r.power||'', contract:parseDate(r.contract)||null,
       start:parseDate(r.start), end:parseDate(r.end), color:COLORS[ci++%COLORS.length]
     })).filter(t=>t.start&&t.end&&t.start<=t.end);
     setStatus('connected');resetCoFilter();scrollToEarliest();render();
