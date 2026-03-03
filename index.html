@@ -250,6 +250,17 @@ textarea:focus{border-color:var(--accent);}
       <option value="start">着工日</option>
       <option value="end">完了日</option>
     </select>
+    <span style="font-size:9px;color:var(--text-sub);padding:0 2px">▶</span>
+    <select id="sortSelect2">
+      <option value="none">なし</option>
+      <option value="co">工事会社</option>
+      <option value="sales">自社担当</option>
+      <option value="eng">工務担当</option>
+      <option value="area">エリア</option>
+      <option value="power">受電</option>
+      <option value="start">着工日</option>
+      <option value="end">完了日</option>
+    </select>
   </div>
   <div class="spacer"></div>
   <span class="count-badge" id="countBadge">0 件</span>
@@ -394,6 +405,7 @@ const COLORS = [
 
 let tasks = [];
 let sortKey = 'none';
+let sortKey2 = 'none';
 let scale = '2weeks';
 let viewStart = null;
 let selectedCol = null;
@@ -504,27 +516,37 @@ function updatePeriodLabel() {
 // ─── Sort ─────────────────────────────────────────────────────────
 function getSortedTasks() {
   const arr = coFilter !== null ? tasks.filter(t=>coFilter.has(t.co||'')) : [...tasks];
-  const strSort=key=>arr.sort((a,b)=>{
+  const cmpStr=key=>(a,b)=>{
     const va=a[key]||'', vb=b[key]||'';
     if(!va&&vb)return 1; if(va&&!vb)return -1; if(!va&&!vb)return 0;
     return va.localeCompare(vb,'ja');
+  };
+  const cmpPower=(a,b)=>{
+    const va=a.power||'', vb=b.power||'';
+    if(!va&&vb)return 1; if(va&&!vb)return -1; if(!va&&!vb)return 0;
+    const rank=v=>v.includes('特高')?0:v.includes('高圧')?1:v.includes('低圧')?2:3;
+    return rank(va)-rank(vb);
+  };
+  const cmpDate=key=>(a,b)=>(a[key]||0)-(b[key]||0);
+  const getCmp=key=>{
+    switch(key){
+      case 'co':    return cmpStr('co');
+      case 'sales': return cmpStr('sales');
+      case 'eng':   return cmpStr('eng');
+      case 'area':  return cmpStr('area');
+      case 'power': return cmpPower;
+      case 'start': return cmpDate('start');
+      case 'end':   return cmpDate('end');
+      default:      return ()=>0;
+    }
+  };
+  if(sortKey==='none') return arr;
+  const cmp1=getCmp(sortKey);
+  const cmp2=sortKey2!=='none'?getCmp(sortKey2):null;
+  return arr.sort((a,b)=>{
+    const r=cmp1(a,b);
+    return (r!==0||!cmp2)?r:cmp2(a,b);
   });
-  switch(sortKey){
-    case 'co':    return strSort('co');
-    case 'sales': return strSort('sales');
-    case 'eng':   return strSort('eng');
-    case 'area':  return strSort('area');
-    case 'power': return arr.sort((a,b)=>{
-      const va=a.power||'', vb=b.power||'';
-      if(!va&&vb)return 1; if(va&&!vb)return -1; if(!va&&!vb)return 0;
-      // 特高→高圧→低圧の順
-      const rank=v=>v.includes('特高')?0:v.includes('高圧')?1:v.includes('低圧')?2:3;
-      return rank(va)-rank(vb);
-    });
-    case 'start': return arr.sort((a,b)=>a.start-b.start);
-    case 'end':   return arr.sort((a,b)=>a.end-b.end);
-    default:      return arr;
-  }
 }
 
 // ─── Render ───────────────────────────────────────────────────────
@@ -971,6 +993,7 @@ document.querySelectorAll('.tab-btn').forEach(btn=>{
 document.querySelectorAll('.th-cell.sortable').forEach(th=>{
   th.addEventListener('click',()=>{
     sortKey=sortKey===th.dataset.sort?'none':th.dataset.sort;
+    if(sortKey2===sortKey) { sortKey2='none'; document.getElementById('sortSelect2').value='none'; }
     document.getElementById('sortSelect').value=sortKey;
     render();
   });
@@ -982,6 +1005,7 @@ document.querySelectorAll('.scale-btn').forEach(btn=>{
   });
 });
 document.getElementById('sortSelect').addEventListener('change',e=>{sortKey=e.target.value;render();});
+document.getElementById('sortSelect2').addEventListener('change',e=>{sortKey2=e.target.value;render();});
 document.getElementById('prevBtn').addEventListener('click',()=>navigate(-1));
 document.getElementById('nextBtn').addEventListener('click',()=>navigate(1));
 document.getElementById('todayBtn').addEventListener('click',goToday);
