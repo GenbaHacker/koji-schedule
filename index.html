@@ -64,6 +64,7 @@ body{font-family:'Noto Sans JP',sans-serif;background:var(--bg);color:var(--text
 .th-sales{width:70px;}
 .th-eng{width:70px;}
 .th-const{width:86px;}
+.th-rank{width:60px;}
 .th-power{width:68px;}
 
 .task-scroll{flex:1;overflow-y:auto;overflow-x:hidden;}
@@ -81,6 +82,7 @@ body{font-family:'Noto Sans JP',sans-serif;background:var(--bg);color:var(--text
 .td-sales{width:70px;}
 .td-eng{width:70px;}
 .td-const{width:86px;}
+.td-rank{width:60px;}
 .td-power{width:68px;}
 .undecided{color:var(--text-sub);font-style:italic;font-size:9px;}
 .power-badge{display:inline-block;background:var(--accent-light);color:var(--accent);border-radius:3px;padding:1px 5px;font-size:9px;font-weight:700;font-family:'DM Mono',monospace;}
@@ -297,6 +299,7 @@ textarea:focus{border-color:var(--accent);}
       <div class="th-cell th-sales sortable" data-sort="sales">自社担当</div>
       <div class="th-cell th-eng sortable" data-sort="eng">工務担当</div>
       <div class="th-cell th-const sortable" data-sort="co">工事会社</div>
+      <div class="th-cell th-rank sortable" data-sort="rank">ランク</div>
       <div class="th-cell th-power sortable" data-sort="power">受電</div>
     </div>
     <div class="task-scroll" id="taskScroll">
@@ -406,7 +409,7 @@ textarea:focus{border-color:var(--accent);}
 <script>
 // ─── Column mapping (0-indexed) ────────────────────────────────────
 // C=2(案件名), E=4(受電), G=6(エリア), H=7(営業担当), J=9(工務担当), L=11(工事会社), S=18(契約予定日), T=19(着工予定), U=20(完工予定)
-const COL = { name:3, power:5, area:7, sales:8, eng:10, co:12, contract:18, start:19, end:20 }; // D=3,F=5,H=7,I=8,K=10,M=12,S=18(契約),T=19(着工),U=20(完工)
+const COL = { name:3, power:5, area:7, sales:8, eng:10, co:12, rank:14, contract:18, start:19, end:20 }; // D=3,F=5,H=7,I=8,K=10,M=12,O=14(ランク),S=18(契約),T=19(着工),U=20(完工)
 
 const COLORS = [
   '#3b82f6','#10b981','#f59e0b','#ef4444','#8b5cf6','#06b6d4',
@@ -452,6 +455,7 @@ const GAS_CODE = `function doGet(e) {
       const sales = row[8];   // I列: 自社担当
       const eng   = row[10];  // K列: 工務担当
       const co    = row[12];  // M列: 工事会社
+      const rank  = row[14];  // O列: ランク
       const contract = row[18];  // S列: 契約予定日
       const start = row[19];  // T列: 着工予定
       const end   = row[20];  // U列: 完工予定
@@ -468,6 +472,7 @@ const GAS_CODE = `function doGet(e) {
         sales: String(sales || ''),
         eng:   String(eng   || ''),
         co:    String(co    || ''),
+        rank:  String(rank  || ''),
         start: Utilities.formatDate(s,  'Asia/Tokyo', 'yyyy-MM-dd'),
         end:   Utilities.formatDate(e2, 'Asia/Tokyo', 'yyyy-MM-dd'),
         contract: contract && !isNaN(contract instanceof Date ? contract : new Date(contract)) ? Utilities.formatDate(contract instanceof Date ? contract : new Date(contract), 'Asia/Tokyo', 'yyyy-MM-dd') : '',
@@ -677,6 +682,7 @@ function renderLeft() {
       <div class="td-cell td-sales">${d(t.sales)}</div>
       <div class="td-cell td-eng">${d(t.eng)}</div>
       <div class="td-cell td-const">${d(t.co)}</div>
+      <div class="td-cell td-rank">${d(t.rank)}</div>
       <div class="td-cell td-power">${pw}</div>
     </div>`;
   }).join('');
@@ -838,7 +844,7 @@ function parseTSV(text){
     if(!name||!start||!end||start>end)return;
     result.push({id:Date.now().toString()+Math.random(),name,start,end,contract:parseDate(c[COL.contract]?.trim())||null,
       area:c[COL.area]?.trim()||'', sales:c[COL.sales]?.trim()||'',
-      eng:c[COL.eng]?.trim()||'', co:c[COL.co]?.trim()||'',
+      eng:c[COL.eng]?.trim()||'', co:c[COL.co]?.trim()||'', rank:c[COL.rank]?.trim()||'',
       power:c.length>COL.power?c[COL.power]?.trim()||'':'',
       color:COLORS[ci++%COLORS.length]});
   });
@@ -881,7 +887,7 @@ async function syncFromGAS(){
     let ci=0;
     tasks=json.data.map(r=>({
       id:Date.now().toString()+Math.random(),
-      name:r.name, area:r.area||'', sales:r.sales||'', eng:r.eng||'', co:r.co||'', power:r.power||'', contract:parseDate(r.contract)||null,
+      name:r.name, area:r.area||'', sales:r.sales||'', eng:r.eng||'', co:r.co||'', rank:r.rank||'', power:r.power||'', contract:parseDate(r.contract)||null,
       start:parseDate(r.start), end:parseDate(r.end), color:COLORS[ci++%COLORS.length]
     })).filter(t=>t.start&&t.end&&t.start<=t.end);
     setStatus('connected');resetCoFilter();scrollToEarliest();render();
@@ -927,7 +933,7 @@ function loadSample(){
     const s=addDays(new Date(y,m,1),Math.floor(Math.random()*40)-5);
     return{id:Date.now().toString()+i,name,start:s,end:addDays(s,14+Math.floor(Math.random()*60)),
       area:areas[i%areas.length],sales:sales[i%sales.length],eng:engs[i%engs.length],
-      co:cos[i%cos.length],power:powers[i%powers.length],color:COLORS[i%COLORS.length]};
+      co:cos[i%cos.length],rank:'',power:powers[i%powers.length],color:COLORS[i%COLORS.length]};
   });
   resetCoFilter();scrollToEarliest();render();
 }
