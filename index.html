@@ -52,6 +52,24 @@ body{font-family:'Noto Sans JP',sans-serif;background:var(--bg);color:var(--text
 
 /* ─ Left panel ─ */
 .task-panel{width:var(--left-w);flex-shrink:0;background:var(--surface);border-right:1px solid var(--border);display:flex;flex-direction:column;overflow:hidden;}
+.task-filters{padding:8px 6px;border-bottom:1px solid var(--border);display:flex;flex-direction:column;gap:6px;}
+.filter-section{position:relative;}
+.filter-label{display:block;font-size:9px;font-weight:700;color:var(--text-muted);margin-bottom:3px;padding:0 6px;}
+.filter-toggle-btn{width:100%;padding:5px 6px;border:1px solid var(--border);background:var(--surface2);color:var(--text-muted);font-size:10px;cursor:pointer;border-radius:4px;transition:all .15s;}
+.filter-toggle-btn:hover{border-color:var(--accent);color:var(--accent);}
+.filter-dropdown{position:absolute;top:100%;left:0;right:0;background:var(--surface);border:1px solid var(--border);border-radius:6px;box-shadow:0 4px 12px rgba(0,0,0,.1);z-index:100;margin-top:2px;}
+.filter-dropdown.hidden{display:none;}
+.filter-actions{display:flex;gap:4px;padding:6px;border-bottom:1px solid var(--border);}
+.filter-actions button{flex:1;padding:3px;border-radius:3px;border:1px solid var(--border);background:var(--surface2);color:var(--text-muted);font-size:9px;cursor:pointer;transition:all .12s;}
+.filter-actions button:hover{border-color:var(--accent);color:var(--accent);}
+.filter-list{max-height:150px;overflow-y:auto;padding:4px;}
+.filter-list::-webkit-scrollbar{width:4px;}
+.filter-list::-webkit-scrollbar-thumb{background:var(--border2);border-radius:2px;}
+.filter-item{display:flex;align-items:center;gap:6px;padding:3px 6px;font-size:10px;cursor:pointer;border-radius:3px;}
+.filter-item:hover{background:var(--accent-light);}
+.filter-item input[type=checkbox]{width:12px;height:12px;accent-color:var(--accent);cursor:pointer;}
+.filter-apply-btn{width:calc(100% - 12px);padding:4px;margin:6px;border-radius:4px;border:none;background:var(--accent);color:#fff;font-size:10px;font-weight:700;cursor:pointer;transition:background .15s;}
+.filter-apply-btn:hover{background:var(--accent-hover);}
 .task-panel-header{height:var(--header-h);border-bottom:2px solid var(--border);display:flex;align-items:flex-end;flex-shrink:0;background:var(--surface2);}
 .th-cell{height:100%;display:flex;align-items:flex-end;padding:0 6px 7px;border-right:1px solid var(--border);font-size:9px;font-weight:700;color:var(--text-muted);letter-spacing:.3px;flex-shrink:0;white-space:nowrap;overflow:hidden;user-select:none;}
 .th-cell.sortable{cursor:pointer;}
@@ -300,6 +318,44 @@ textarea:focus{border-color:var(--accent);}
 
 <div class="main">
   <div class="task-panel">
+    <div class="task-filters">
+      <div class="filter-section">
+        <label class="filter-label">工事会社</label>
+        <button class="filter-toggle-btn" id="filterCoBtn">▼</button>
+        <div class="filter-dropdown hidden" id="filterCoDd">
+          <div class="filter-actions">
+            <button onclick="filterSelectAll('co')">全選択</button>
+            <button onclick="filterSelectNone('co')">全解除</button>
+          </div>
+          <div class="filter-list" id="filterCoList"></div>
+          <button class="filter-apply-btn" onclick="applyFilter('co')">適用</button>
+        </div>
+      </div>
+      <div class="filter-section">
+        <label class="filter-label">状態</label>
+        <button class="filter-toggle-btn" id="filterStatusBtn">▼</button>
+        <div class="filter-dropdown hidden" id="filterStatusDd">
+          <div class="filter-actions">
+            <button onclick="filterSelectAll('status')">全選択</button>
+            <button onclick="filterSelectNone('status')">全解除</button>
+          </div>
+          <div class="filter-list" id="filterStatusList"></div>
+          <button class="filter-apply-btn" onclick="applyFilter('status')">適用</button>
+        </div>
+      </div>
+      <div class="filter-section">
+        <label class="filter-label">ランク</label>
+        <button class="filter-toggle-btn" id="filterRankBtn">▼</button>
+        <div class="filter-dropdown hidden" id="filterRankDd">
+          <div class="filter-actions">
+            <button onclick="filterSelectAll('rank')">全選択</button>
+            <button onclick="filterSelectNone('rank')">全解除</button>
+          </div>
+          <div class="filter-list" id="filterRankList"></div>
+          <button class="filter-apply-btn" onclick="applyFilter('rank')">適用</button>
+        </div>
+      </div>
+    </div>
     <div class="task-panel-header">
       <div class="th-cell th-num">#</div>
       <div class="th-cell th-status sortable" data-sort="status">状態</div>
@@ -438,6 +494,8 @@ let resizeState = null;
 let gasUrl = localStorage.getItem('gantt_gas_url') || '';
 let dateInfoTimer = null;
 let coFilter = null; // null=全表示, Set=表示する工事会社名の集合
+let statusFilter = null; // null=全表示, Set=表示する状態の集合
+let rankFilter = null;   // null=全表示, Set=表示するランクの集合
 
 const SCALES = {
   week:    { days:7,   cellW:80, unit:'day'   },
@@ -543,7 +601,10 @@ function updatePeriodLabel() {
 
 // ─── Sort ─────────────────────────────────────────────────────────
 function getSortedTasks() {
-  const arr = coFilter !== null ? tasks.filter(t=>coFilter.has(t.co||'')) : [...tasks];
+  let arr = [...tasks];
+  if(coFilter !== null) arr = arr.filter(t=>coFilter.has(t.co||''));
+  if(statusFilter !== null) arr = arr.filter(t=>statusFilter.has(t.status||''));
+  if(rankFilter !== null) arr = arr.filter(t=>rankFilter.has(t.rank||''));
   const cmpStr=key=>(a,b)=>{
     const va=a[key]||'', vb=b[key]||'';
     if(!va&&vb)return 1; if(va&&!vb)return -1; if(!va&&!vb)return 0;
@@ -931,6 +992,55 @@ function copyGasCode(){navigator.clipboard.writeText(GAS_CODE).then(()=>alert('�
 function openImportModal(){document.getElementById('pasteArea').value='';document.getElementById('importModal').classList.remove('hidden');setTimeout(()=>document.getElementById('pasteArea').focus(),100);}
 function closeImportModal(){document.getElementById('importModal').classList.add('hidden');}
 
+// ─── Filter (Status, Rank) ────────────────────────────────────────
+function getUniqueValues(key) {
+  const set = new Set(tasks.map(t=>t[key]||''));
+  return [...set].sort((a,b)=>{
+    if(!a && b) return 1; if(a && !b) return -1; if(!a && !b) return 0;
+    return a.localeCompare(b,'ja');
+  });
+}
+function buildFilterList(key) {
+  const values = getUniqueValues(key);
+  const listId = key==='co'?'filterCoList':key==='status'?'filterStatusList':'filterRankList';
+  const list = document.getElementById(listId);
+  const filter = key==='co'?coFilter:key==='status'?statusFilter:rankFilter;
+  list.innerHTML = values.map(val=>{
+    const label = val || '（未設定）';
+    const cnt = tasks.filter(t=>(t[key]||'')===val).length;
+    const chk = filter===null || filter.has(val);
+    return `<label class="filter-item"><input type="checkbox" value="${val.replace(/"/g,'&quot;')}" ${chk?'checked':''}><span style="flex:1">${label}</span><span style="font-size:9px;color:var(--text-sub)">${cnt}件</span></label>`;
+  }).join('');
+}
+function filterSelectAll(key) {
+  const listId = key==='co'?'filterCoList':key==='status'?'filterStatusList':'filterRankList';
+  document.getElementById(listId).querySelectorAll('input[type=checkbox]').forEach(cb=>cb.checked=true);
+}
+function filterSelectNone(key) {
+  const listId = key==='co'?'filterCoList':key==='status'?'filterStatusList':'filterRankList';
+  document.getElementById(listId).querySelectorAll('input[type=checkbox]').forEach(cb=>cb.checked=false);
+}
+function applyFilter(key) {
+  const listId = key==='co'?'filterCoList':key==='status'?'filterStatusList':'filterRankList';
+  const checked = [...document.getElementById(listId).querySelectorAll('input[type=checkbox]:checked')].map(cb=>cb.value);
+  const allVals = getUniqueValues(key);
+  if(key==='co') coFilter = checked.length===allVals.length ? null : new Set(checked);
+  else if(key==='status') statusFilter = checked.length===allVals.length ? null : new Set(checked);
+  else if(key==='rank') rankFilter = checked.length===allVals.length ? null : new Set(checked);
+  closeFilterDropdown(key);
+  render();
+}
+function toggleFilterDropdown(key) {
+  const ddId = key==='co'?'filterCoDd':key==='status'?'filterStatusDd':'filterRankDd';
+  const dd = document.getElementById(ddId);
+  dd.classList.toggle('hidden');
+  if(!dd.classList.contains('hidden')) buildFilterList(key);
+}
+function closeFilterDropdown(key) {
+  const ddId = key==='co'?'filterCoDd':key==='status'?'filterStatusDd':'filterRankDd';
+  document.getElementById(ddId).classList.add('hidden');
+}
+
 // ─── Sample ───────────────────────────────────────────────────────
 function loadSample(){
   const t=today(),y=t.getFullYear(),m=t.getMonth();
@@ -1109,6 +1219,16 @@ window.addEventListener('afterprint',()=>{
 document.getElementById('printBtn').addEventListener('click',()=>window.print());
 
 // ─── Init ─────────────────────────────────────────────────────────
+document.getElementById('filterCoBtn').addEventListener('click',()=>toggleFilterDropdown('co'));
+document.getElementById('filterStatusBtn').addEventListener('click',()=>toggleFilterDropdown('status'));
+document.getElementById('filterRankBtn').addEventListener('click',()=>toggleFilterDropdown('rank'));
+document.addEventListener('click',e=>{
+  if(!e.target.closest('.filter-section')) {
+    document.getElementById('filterCoDd').classList.add('hidden');
+    document.getElementById('filterStatusDd').classList.add('hidden');
+    document.getElementById('filterRankDd').classList.add('hidden');
+  }
+});
 if(gasUrl)setStatus('connected');
 initViewStart();render();
 if(gasUrl)setTimeout(syncFromGAS,500);
