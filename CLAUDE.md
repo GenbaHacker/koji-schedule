@@ -1,6 +1,9 @@
 # CLAUDE.md
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+## 作業環境
+- **パス**: `C:\Users\kiyo8\MyObsidian\06_Projects\koji-schedule`
+- **親ナレッジベース**: `../../CLAUDE.md`（Obsidian ナレッジ）
+- **共有スキル**: `../../../_shared/skills/`
 
 ## Overview
 
