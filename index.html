@@ -1085,12 +1085,6 @@ function openFilterPanel() {
 function closeFilterPanel() {
   document.getElementById('filterPanel').classList.remove('open');
 }
-function filterSelectAll() {
-  document.getElementById('filterList').querySelectorAll('input[type=checkbox]').forEach(cb=>cb.checked=true);
-}
-function filterSelectNone() {
-  document.getElementById('filterList').querySelectorAll('input[type=checkbox]').forEach(cb=>cb.checked=false);
-}
 function applyCoFilter() {
   const checked = [...document.getElementById('filterList').querySelectorAll('input[type=checkbox]:checked')].map(cb=>cb.value);
   const allCos = getUniqueCos();
