@@ -801,7 +801,7 @@ function renderChart() {
   }
   const items=buildDisplayItems();
   rows.innerHTML=items.map(item=>{
-    if(item.kind==='group') return `<div class="group-chart-sep" style="height:22px;width:${days.length*cw}px"></div>`;
+    if(item.kind==='group') return `<div class="group-chart-sep" style="height:32px;width:${days.length*cw}px"></div>`;
     const task=item.task, i=item.idx;
     const visible=task.end>=viewStart&&task.start<=viewEnd;
     let barHtml='';
