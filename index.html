@@ -561,6 +561,14 @@ const GAS_CODE = `function doGet(e) {
 
 // ─── Date Utils ───────────────────────────────────────────────────
 function today() { const d=new Date(); return new Date(d.getFullYear(),d.getMonth(),d.getDate()); }
+function getEngColor(engName) {
+  if (!engName || !engName.trim()) return '#94a3b8';
+  let hash = 0;
+  for (let i = 0; i < engName.length; i++) {
+    hash += engName.charCodeAt(i);
+  }
+  return COLORS[hash % COLORS.length];
+}
 function parseDate(v) {
   if (!v) return null;
   if (v instanceof Date) return new Date(v.getFullYear(),v.getMonth(),v.getDate());
@@ -755,7 +763,7 @@ function renderLeft() {
       <div class="td-dot-name"><div class="dot" style="background:${t.color}"></div><span class="td-name" title="${t.name}">${t.name}</span></div>
       <div class="td-cell td-area">${d(t.area)}</div>
       <div class="td-cell td-sales">${d(t.sales)}</div>
-      <div class="td-cell td-eng">${d(t.eng)}</div>
+      <div class="td-cell td-eng">${t.eng?`<div style="width:8px;height:8px;border-radius:50%;background:${getEngColor(t.eng)};display:inline-block;margin-right:5px;vertical-align:middle"></div>${t.eng}`:`<span class="undecided">未決定</span>`}</div>
       <div class="td-cell td-const">${d(t.co)}</div>
       <div class="td-cell td-rank">${d(t.rank)}</div>
       <div class="td-cell td-power">${pw}</div>
@@ -911,17 +919,18 @@ function hideTip(){document.getElementById('tooltip').classList.add('hidden');}
 
 // ─── Paste Import ────────────────────────────────────────────────
 function parseTSV(text){
-  const lines=text.trim().split('\n'); const result=[]; let ci=0;
+  const lines=text.trim().split('\n'); const result=[];
   lines.forEach(line=>{
     const c=line.split('\t');
     if(c.length<21)return;
     const name=c[COL.name]?.trim(), start=parseDate(c[COL.start]?.trim()), end=parseDate(c[COL.end]?.trim());
     if(!name||!start||!end||start>end)return;
+    const engVal=c[COL.eng]?.trim()||'';
     result.push({id:Date.now().toString()+Math.random(),name,start,end,contract:parseDate(c[COL.contract]?.trim())||null,
       status:c[COL.status]?.trim()||'', area:c[COL.area]?.trim()||'', sales:c[COL.sales]?.trim()||'',
-      eng:c[COL.eng]?.trim()||'', co:c[COL.co]?.trim()||'', rank:c[COL.rank]?.trim()||'',
+      eng:engVal, co:c[COL.co]?.trim()||'', rank:c[COL.rank]?.trim()||'',
       power:c.length>COL.power?c[COL.power]?.trim()||'':'',
-      color:COLORS[ci++%COLORS.length]});
+      color:getEngColor(engVal)});
   });
   return result;
 }
@@ -959,12 +968,14 @@ async function syncFromGAS(){
     if(!ct.includes('application/json'))throw new Error('JSONが返されませんでした。GASのデプロイ設定を確認してください（アクセス：全員）');
     const json=await res.json();
     if(!json.ok)throw new Error(json.error||'Error');
-    let ci=0;
-    tasks=json.data.map(r=>({
-      id:Date.now().toString()+Math.random(),
-      status:r.status||'', name:r.name, area:r.area||'', sales:r.sales||'', eng:r.eng||'', co:r.co||'', rank:r.rank||'', power:r.power||'', contract:parseDate(r.contract)||null,
-      start:parseDate(r.start), end:parseDate(r.end), color:COLORS[ci++%COLORS.length]
-    })).filter(t=>t.start&&t.end&&t.start<=t.end);
+    tasks=json.data.map(r=>{
+      const engVal=r.eng||'';
+      return{
+        id:Date.now().toString()+Math.random(),
+        status:r.status||'', name:r.name, area:r.area||'', sales:r.sales||'', eng:engVal, co:r.co||'', rank:r.rank||'', power:r.power||'', contract:parseDate(r.contract)||null,
+        start:parseDate(r.start), end:parseDate(r.end), color:getEngColor(engVal)
+      };
+    }).filter(t=>t.start&&t.end&&t.start<=t.end);
     setStatus('connected');resetCoFilter();scrollToEarliest();render();
   }catch(err){setStatus('error');alert('接続エラー：\n'+gasErrMsg(err));}
 }
@@ -1055,9 +1066,10 @@ function loadSample(){
     'エイコー電子','元久保工作所','朋間エンジニアリング','ホームセンターナンバ','神門酒業','広島市ごみ処理施設'];
   tasks=names.map((name,i)=>{
     const s=addDays(new Date(y,m,1),Math.floor(Math.random()*40)-5);
+    const engVal=engs[i%engs.length];
     return{id:Date.now().toString()+i,name,start:s,end:addDays(s,14+Math.floor(Math.random()*60)),
-      status:'',area:areas[i%areas.length],sales:sales[i%sales.length],eng:engs[i%engs.length],
-      co:cos[i%cos.length],rank:'',power:powers[i%powers.length],color:COLORS[i%COLORS.length]};
+      status:'',area:areas[i%areas.length],sales:sales[i%sales.length],eng:engVal,
+      co:cos[i%cos.length],rank:'',power:powers[i%powers.length],color:getEngColor(engVal)};
   });
   resetCoFilter();scrollToEarliest();render();
 }
