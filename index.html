@@ -419,11 +419,11 @@ textarea:focus{border-color:var(--accent);}
         <button class="btn" style="margin-top:7px" onclick="copyGasCode()">📋 コードをコピー</button>
         <div class="info-box blue" style="margin-top:10px;font-size:10px">
           <strong>手順：</strong><br>
-          1. スプレッドシート → 拡張機能 → Apps Script<br>
-          2. コードを貼り付けて保存（Ctrl+S）<br>
+          1. script.google.com → 新しいプロジェクト（管理表に付いたプロジェクトとは<strong>別</strong>に作る）<br>
+          2. コードを貼り付けて保存（Ctrl+S）→ doGet を一度「実行」して権限を許可<br>
           3. デプロイ → 新しいデプロイ → ウェブアプリ<br>
-          4. 次のユーザーとして実行：<strong>自分</strong>　アクセス：<strong>全員</strong><br>
-          5. URLをコピーして「接続設定」タブに貼り付け
+          4. 次のユーザーとして実行：<strong>自分</strong>　アクセス：<strong>株式会社SAWADA 内の全員</strong><br>
+          5. 発行された URL を開くと、工程表がデータ付きで表示される（この URL を社内で共有）
         </div>
       </div>
     </div>
@@ -511,13 +511,30 @@ const SCALES = {
 };
 
 // ─── GAS Code ─────────────────────────────────────────────────────
-const GAS_CODE = `// 列は「見出し名」で探す（列の挿入・並べ替えがあっても、見出しの文字が同じなら壊れない）
-const SHEET_NAME = '案件管理（2026年度）';
-const HEADER_ROW = 3; // 見出しのある行（1始まり）
+const GAS_CODE = `// koji-schedule 配信用（KS-3）。管理表に付いたプロジェクトとは別の「独立プロジェクト」に置く。
+// デプロイ: 種類=ウェブアプリ ／ 次のユーザーとして実行=自分 ／ アクセスできるユーザー=株式会社SAWADA 内の全員
+// 画面は GitHub Pages の最新版を取得して配信する（push すれば反映。10分キャッシュ）。
 
 function doGet(e) {
+  var PAGE_URL = 'https://genbahacker.github.io/koji-schedule/';
+  var cache = CacheService.getScriptCache();
+  var html = cache.get('koji_html');
+  if (!html) {
+    html = UrlFetchApp.fetch(PAGE_URL).getContentText('UTF-8');
+    try { cache.put('koji_html', html, 600); } catch (err) { /* 100KB超はキャッシュしない */ }
+  }
+  return HtmlService.createHtmlOutput(html)
+    .setTitle('工事工程表')
+    .addMetaTag('viewport', 'width=device-width, initial-scale=1');
+}
+
+// 画面から google.script.run.kojiGetData() で呼ばれる。列は3行目の「見出し名」で探す
+function kojiGetData() {
+  var SPREADSHEET_ID = '1bseEB1U9ZyIgGJENRPYavGZcbFkG44A2OZZ43fXUexw'; // 自家消費案件管理表（2026）
+  var SHEET_NAME = '案件管理（2026年度）';
+  var HEADER_ROW = 3; // 見出しのある行（1始まり）
   try {
-    const ss = SpreadsheetApp.getActiveSpreadsheet();
+    const ss = SpreadsheetApp.openById(SPREADSHEET_ID);
     const sheet = ss.getSheetByName(SHEET_NAME) || ss.getSheets()[0];
     const data = sheet.getDataRange().getValues();
 
@@ -565,14 +582,9 @@ function doGet(e) {
       });
     }
 
-    return ContentService
-      .createTextOutput(JSON.stringify({ ok: true, data: rows }))
-      .setMimeType(ContentService.MimeType.JSON);
-
-  } catch(err) {
-    return ContentService
-      .createTextOutput(JSON.stringify({ ok: false, error: err.toString() }))
-      .setMimeType(ContentService.MimeType.JSON);
+    return { ok: true, data: rows };
+  } catch (err) {
+    return { ok: false, error: err.toString() };
   }
 }`;
 
@@ -986,15 +998,26 @@ function gasErrMsg(e){
   }
   return e.message;
 }
+// GAS（HtmlService）から配信されているときは google.script.run でデータを取る（KS-3）
+// 社内限定公開（株式会社SAWADA 内の全員）でも動く。github.io 版は従来どおり URL へ fetch する
+const IN_GAS = typeof google!=='undefined' && !!(google.script && google.script.run);
+function gasRunGetData(){
+  return new Promise((resolve,reject)=>google.script.run.withSuccessHandler(resolve).withFailureHandler(reject).kojiGetData());
+}
 async function syncFromGAS(){
-  if(!gasUrl){openGasModal();return;}
+  if(!IN_GAS&&!gasUrl){openGasModal();return;}
   setStatus('loading');
   try{
-    const res=await fetch(gasUrl);
-    const ct=res.headers.get('content-type')||'';
-    if(!ct.includes('application/json'))throw new Error('JSONが返されませんでした。GASのデプロイ設定を確認してください（アクセス：全員）');
-    const json=await res.json();
-    if(!json.ok)throw new Error(json.error||'Error');
+    let json;
+    if(IN_GAS){
+      json=await gasRunGetData();
+    }else{
+      const res=await fetch(gasUrl);
+      const ct=res.headers.get('content-type')||'';
+      if(!ct.includes('application/json'))throw new Error('JSONが返されませんでした。GASのデプロイ設定を確認してください（アクセス：全員）');
+      json=await res.json();
+    }
+    if(!json||!json.ok)throw new Error((json&&json.error)||'Error');
     tasks=json.data.map(r=>{
       const engVal=r.eng||'';
       return{
@@ -1262,9 +1285,9 @@ document.addEventListener('click',e=>{
     document.getElementById('filterRankDd').classList.add('hidden');
   }
 });
-if(gasUrl)setStatus('connected');
+if(gasUrl&&!IN_GAS)setStatus('connected');
 initViewStart();render();
-if(gasUrl)setTimeout(syncFromGAS,500);
+if(IN_GAS||gasUrl)setTimeout(syncFromGAS,500);
 </script>
 </body>
 </html>
