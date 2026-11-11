@@ -474,7 +474,11 @@ textarea:focus{border-color:var(--accent);}
 <script>
 // ─── Column mapping (0-indexed) ────────────────────────────────────
 // C=2(案件名), E=4(受電), G=6(エリア), H=7(営業担当), J=9(工務担当), L=11(工事会社), S=18(契約予定日), T=19(着工予定), U=20(完工予定)
-const COL = { status:0, name:3, power:5, area:7, sales:8, eng:10, co:12, rank:14, contract:18, start:19, end:20 }; // A=0(状態),D=3,F=5,H=7,I=8,K=10,M=12,O=14(ランク),S=18(契約),T=19(着工),U=20(完工)
+// 貼り付け取り込みの既定の列（A列から貼った場合。2026-11 の管理表: A=No を挿入後の配置）
+// B=1(状態),C=2(自社担当),F=5(案件名),I=8(受電),K=10(エリア),M=12(工務),O=14(工事会社),Q=16(ランク),W=22(契約),X=23(着工),Y=24(完工)
+const COL = { status:1, sales:2, name:5, power:8, area:10, eng:12, co:14, rank:16, contract:22, start:23, end:24 };
+// 見出し行を一緒に貼った場合は、見出し名から列を決める（列がずれても壊れない）
+const COL_LABELS = { status:'状態', sales:'自社担当', name:'案件名', power:'受電', area:'エリア', eng:'工務担当', co:'工事会社', rank:'ランク', contract:'契約予定日', start:'着工予定', end:'完工予定' };
 
 const COLORS = [
   '#3b82f6','#10b981','#f59e0b','#ef4444','#8b5cf6','#06b6d4',
@@ -507,44 +511,57 @@ const SCALES = {
 };
 
 // ─── GAS Code ─────────────────────────────────────────────────────
-const GAS_CODE = `function doGet(e) {
+const GAS_CODE = `// 列は「見出し名」で探す（列の挿入・並べ替えがあっても、見出しの文字が同じなら壊れない）
+const SHEET_NAME = '案件管理（2026年度）';
+const HEADER_ROW = 3; // 見出しのある行（1始まり）
+
+function doGet(e) {
   try {
     const ss = SpreadsheetApp.getActiveSpreadsheet();
-    const sheet = ss.getSheets()[0];
+    const sheet = ss.getSheetByName(SHEET_NAME) || ss.getSheets()[0];
     const data = sheet.getDataRange().getValues();
+
+    // 見出し → 列番号（改行・空白を除いて照合）
+    const head = data[HEADER_ROW - 1].map(function (h) { return String(h).replace(/\\s/g, ''); });
+    function col(label) {
+      const idx = head.indexOf(label);
+      if (idx < 0) throw new Error('見出しが見つからない: ' + label);
+      return idx;
+    }
+    const C = {
+      no: col('No'), status: col('状態'), name: col('案件名'), power: col('受電'),
+      area: col('エリア'), sales: col('自社担当'), eng: col('工務担当'),
+      co: col('工事会社'), rank: col('ランク'), contract: col('契約予定日'),
+      start: col('着工予定'), end: col('完工予定'),
+    };
+
+    function toYmd(v) {
+      if (!v) return '';
+      const d = v instanceof Date ? v : new Date(v);
+      return isNaN(d) ? '' : Utilities.formatDate(d, 'Asia/Tokyo', 'yyyy-MM-dd');
+    }
+
     const rows = [];
-
-    for (let i = 4; i < data.length; i++) {
+    for (let i = HEADER_ROW; i < data.length; i++) { // 見出しの次の行から
       const row = data[i];
-      const status = row[0];  // A列: 状態
-      const name  = row[3];   // D列: 案件名
-      const power = row[5];   // F列: 受電種別
-      const area  = row[7];   // H列: エリア
-      const sales = row[8];   // I列: 自社担当
-      const eng   = row[10];  // K列: 工務担当
-      const co    = row[12];  // M列: 工事会社
-      const rank  = row[14];  // O列: ランク
-      const contract = row[18];  // S列: 契約予定日
-      const start = row[19];  // T列: 着工予定
-      const end   = row[20];  // U列: 完工予定
-
+      const name = row[C.name];
+      const start = toYmd(row[C.start]);
+      const end = toYmd(row[C.end]);
       if (!name || !start || !end) continue;
-      const s  = start instanceof Date ? start : new Date(start);
-      const e2 = end   instanceof Date ? end   : new Date(end);
-      if (isNaN(s) || isNaN(e2)) continue;
 
       rows.push({
-        status: String(status || ''),
-        name:  String(name),
-        power: String(power || ''),
-        area:  String(area  || ''),
-        sales: String(sales || ''),
-        eng:   String(eng   || ''),
-        co:    String(co    || ''),
-        rank:  String(rank  || ''),
-        start: Utilities.formatDate(s,  'Asia/Tokyo', 'yyyy-MM-dd'),
-        end:   Utilities.formatDate(e2, 'Asia/Tokyo', 'yyyy-MM-dd'),
-        contract: contract && !isNaN(contract instanceof Date ? contract : new Date(contract)) ? Utilities.formatDate(contract instanceof Date ? contract : new Date(contract), 'Asia/Tokyo', 'yyyy-MM-dd') : '',
+        no: String(row[C.no] || ''),
+        status: String(row[C.status] || ''),
+        name: String(name),
+        power: String(row[C.power] || ''),
+        area: String(row[C.area] || ''),
+        sales: String(row[C.sales] || ''),
+        eng: String(row[C.eng] || ''),
+        co: String(row[C.co] || ''),
+        rank: String(row[C.rank] || ''),
+        start: start,
+        end: end,
+        contract: toYmd(row[C.contract]),
       });
     }
 
@@ -919,26 +936,36 @@ function hideTip(){document.getElementById('tooltip').classList.add('hidden');}
 
 // ─── Paste Import ────────────────────────────────────────────────
 function parseTSV(text){
-  const lines=text.trim().split('\n'); const result=[];
+  // 先頭のタブを消さないよう trim() は使わない（先頭列が空だと列が1つずれるため）
+  const lines=text.replace(/\r/g,'').split('\n').filter(l=>l.trim()); const result=[];
+  let col=COL;
   lines.forEach(line=>{
     const c=line.split('\t');
-    if(c.length<21)return;
-    const name=c[COL.name]?.trim(), start=parseDate(c[COL.start]?.trim()), end=parseDate(c[COL.end]?.trim());
+    // 見出し行なら列の対応をここから作り、行自体は取り込まない
+    const head=c.map(h=>h.replace(/\s/g,''));
+    if(head.includes(COL_LABELS.name)&&head.includes(COL_LABELS.start)){
+      const m={}; let ok=true;
+      for(const k in COL_LABELS){const i=head.indexOf(COL_LABELS[k]); if(i<0)ok=false; m[k]=i;}
+      if(ok)col=m;
+      return;
+    }
+    if(c.length<=Math.max(col.name,col.start,col.end))return;
+    const name=c[col.name]?.trim(), start=parseDate(c[col.start]?.trim()), end=parseDate(c[col.end]?.trim());
     if(!name||!start||!end||start>end)return;
-    const engVal=c[COL.eng]?.trim()||'';
-    result.push({id:Date.now().toString()+Math.random(),name,start,end,contract:parseDate(c[COL.contract]?.trim())||null,
-      status:c[COL.status]?.trim()||'', area:c[COL.area]?.trim()||'', sales:c[COL.sales]?.trim()||'',
-      eng:engVal, co:c[COL.co]?.trim()||'', rank:c[COL.rank]?.trim()||'',
-      power:c.length>COL.power?c[COL.power]?.trim()||'':'',
+    const engVal=c[col.eng]?.trim()||'';
+    result.push({id:Date.now().toString()+Math.random(),name,start,end,contract:parseDate(c[col.contract]?.trim())||null,
+      status:c[col.status]?.trim()||'', area:c[col.area]?.trim()||'', sales:c[col.sales]?.trim()||'',
+      eng:engVal, co:c[col.co]?.trim()||'', rank:c[col.rank]?.trim()||'',
+      power:c.length>col.power?c[col.power]?.trim()||'':'',
       color:getEngColor(engVal)});
   });
   return result;
 }
 function doImport(){
-  const text=document.getElementById('pasteArea').value.trim();
-  if(!text)return alert('データを貼り付けてください');
+  const text=document.getElementById('pasteArea').value;
+  if(!text.trim())return alert('データを貼り付けてください');
   const parsed=parseTSV(text);
-  if(!parsed.length)return alert('読み込めませんでした。\nD(案件名)/F(受電)/H(エリア)/I(営業)/K(工務)/M(工事会社)/S(契約)/T(着工)/U(完工)列が含まれているか確認してください。');
+  if(!parsed.length)return alert('読み込めませんでした。\nA列（No）から貼り付けるか、見出し行（3行目）も一緒に貼り付けてください。\nF(案件名)/X(着工予定)/Y(完工予定)が必要です。');
   tasks=[...tasks,...parsed];resetCoFilter();closeImportModal();scrollToEarliest();render();
 }
 
