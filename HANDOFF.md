@@ -4,7 +4,8 @@
 
 ## 現在地
 - 本番: https://genbahacker.github.io/koji-schedule/ （GitHub Pages、`GenbaHacker/koji-schedule` main）
-- 最新: `e582357` fix: KS-2（2026-11-11 push、Pages build `built e582357`）
+- 社内で使う入口（KS-3 以降）: 独立した Apps Script ウェブアプリの URL（清田がデプロイ後に記入）。github.io 版は貼り付け取り込み専用
+- push 済み: `e582357` fix: KS-2 ／ `1638a84` docs: KS-2。KS-3 は下記
 - 担当: 決まった係なし（RULES_agents.md の係表に未登録）。KS-2 は清田の直接指示で工場（@SOLAR）セッションが実施
 
 ## KS-2（2026-11-11）管理表の列ずれ修正
@@ -45,11 +46,51 @@ Console: [ERROR] 404 favicon.ico のみ（ファビコン未設置。機能に�
 push証明: git log origin/main..HEAD --oneline → (empty)
 ```
 
+## KS-3（2026-11-11）社内限定 GAS から画面ごと配信する方式へ
+
+### 症状
+清田が GAS 本体を KS-2 の見本に貼り替えた後、koji-schedule の「接続テスト」が「接続失敗：Failed to fetch」。
+
+### 原因（実測）
+- ログイン無しで GAS の /exec を呼ぶと `HTTP/1.1 302 Found` → `Location: https://www.google.com/a/eco-sawada.com/ServiceLogin?…`（curl）
+- 本番 koji-schedule から fetch → `blocked by CORS policy: No 'Access-Control-Allow-Origin' header`（Playwright Console）
+- デプロイ画面の「アクセスできるユーザー」の選択肢が「自分のみ」「株式会社SAWADA 内の全員」だけ（清田のスクショ）。
+  Workspace 設定で「全員」を選べない。→ github.io から社内限定の GAS は呼べない。
+- 対照（「全員」公開の GAS なら通ること）は未検査: 比較に使った solarhack の LOG_ENDPOINT が 404 だったため。
+
+### 清田の決定
+案C: koji-schedule を GAS から配信する（社内限定のまま、案件データを社外に出さない）。
+
+### 修正（index.html）
+- `IN_GAS`（`google.script.run` の有無）で判定。GAS 配信時は `google.script.run.kojiGetData()` でデータを取り、起動時に自動同期。
+  github.io 版は従来どおり（URL fetch・貼り付け）。
+- `GAS_CODE` を配信用に差し替え: `doGet` = GitHub Pages の index.html を UrlFetchApp で取得（CacheService 600秒）→ HtmlService で返す。
+  `kojiGetData` = `openById` で管理表を開き、見出し名で列を探して `{ok, data}` を返す。
+- 「GASの設定方法」の手順を、独立プロジェクト・実行=自分・アクセス=SAWADA内の全員 に書き換え。
+- 独立プロジェクトにする理由: `google.script.run` は同じプロジェクトの全関数を呼べるため、管理表のプロジェクト（自動採番.gs 等）に置かない。
+
+### 検証（生出力）
+```
+① script parse OK: 1 block(s)
+② GAS(kojiGetData) ok=true 件数=88 / 状態欄に案件No.が入った件数=0 / 受電が高圧低圧特高以外=0
+③ 貼り付け(見出しなし) 87件 / (見出しつき) 87件、GASと一致: 両方 true
+④ 対照 1列ずらし: 見出しなし一致=false(false が正) / 見出しつき一致=true(true が正)
+doGet 模擬: {"fetched":1,"url":"https://genbahacker.github.io/koji-schedule/","ttl":600,"title":"工事工程表","meta":"viewport=width=device-width, initial-scale=1"}（2回呼んで取得1回＝キャッシュ有効）
+ブラウザ（localhost、google.script.run 模擬を注入）:
+  ?gas=ok   → IN_GAS:true, calls:1, status:"接続済", modalOpen:false, 2件とも画面に表示（スクショ確認）、Console 0件
+  ?gas=fail → alert「接続エラー：模擬: 権限がありません」, status:"エラー", tasks:0
+  模擬なし  → IN_GAS:false, status:"未接続", modalOpen:false, 設定方法タブに新手順あり、Console 0件
+```
+本物の GAS 上での動作は未検査（清田のデプロイ後に施主検査）。
+
 ## 未完了（清田の作業）
-- [ ] **管理表に紐づく GAS 本体の貼り替え**。これをやるまで GAS 連携の表示はずれたまま。
-  1. 管理表 → 拡張機能 → Apps Script → `doGet` を本番画面「GAS連携 → GASの設定方法」の見本コードに置き換えて保存
-  2. デプロイ → デプロイを管理 → 鉛筆 → バージョン「新しいバージョン」→ デプロイ（URL不変）
-  3. koji-schedule を再読込して、状態・案件名・工期を目視確認（施主検査）
+- [ ] **独立した Apps Script プロジェクトを作ってデプロイ**（index.html の push 後に行う。doGet が GitHub Pages を取りに行くため）
+  1. script.google.com → 新しいプロジェクト（名前例: koji-schedule 配信）
+  2. 本番画面「GAS連携 → GASの設定方法」の見本コードを貼り付けて保存
+  3. 関数 `kojiGetData` を選んで「実行」→ 権限を許可（スプレッドシート・外部URL取得）。実行ログで `ok: true` を確認
+  4. デプロイ → 新しいデプロイ → ウェブアプリ／実行=自分／アクセス=株式会社SAWADA 内の全員 → URL を社内で共有
+  5. その URL を開いて、工程表がデータ付きで表示されるか目視（施主検査）
+- [ ] 管理表に付いたプロジェクトの `工事工程表連携用.gs`（KS-2 で貼った doGet）とそのデプロイは不要になる。消すかどうかは清田判断（消す前に他の用途が無いか確認）
 
 ## 残課題（未着手）
 - 手元 remote URL を `GenbaHacker/koji-schedule.git` に更新するか

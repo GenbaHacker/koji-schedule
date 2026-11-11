@@ -35,9 +35,22 @@ Everything lives in `index.html` as a single self-contained file with three sect
 **データ元**: スプレッドシート「自家消費案件管理表（2026）」のシート「案件管理（2026年度）」。
 見出しは3行目、データは4行目から。2026-11 に A列へ案件No.（KJ/TJ/OT、`../tools/solarhack/claude/RULES_anken-id.md`）が挿入された。
 
-**GAS（スプレッドシートに紐づく Apps Script）**: 列は**見出し名で探す**（`col('案件名')` 等）。
+**配信方式（KS-3, 2026-11-11〜）**: 社内で使う本番は **GAS ウェブアプリが画面ごと配信する**。
+- eco-sawada.com の Workspace 設定で、ウェブアプリの公開範囲に「全員」を選べない（「自分のみ」「株式会社SAWADA 内の全員」だけ）。
+  そのため github.io から GAS を `fetch` すると、ログイン画面に転送されて CORS で失敗する（Failed to fetch）。
+- 解決: 独立した Apps Script プロジェクト（管理表に紐づくプロジェクトとは**別**）で
+  `doGet` が GitHub Pages の index.html を `UrlFetchApp` で取得（10分キャッシュ）して `HtmlService` で返す。
+  画面は `google.script.run.kojiGetData()` でデータを取る（`IN_GAS` で判定）。
+  デプロイ設定: 次のユーザーとして実行=**自分** ／ アクセス=**株式会社SAWADA 内の全員**。
+- 別プロジェクトにする理由: `google.script.run` は同じプロジェクトの全関数を呼べる。管理表のプロジェクト（自動採番.gs 等）に
+  置くと、社内の誰でも清田の権限でそれらを呼べてしまう。名前の衝突も避けられる。
+- github.io 版（GAS外）は従来どおり「GAS連携」URL への fetch と貼り付け取り込み。社内限定の GAS には届かないので、貼り付け専用と考える。
+- index.html を push すれば、GAS 側は最大10分で新しい画面になる（GAS の再デプロイは不要）。`GAS_CODE` を変えたときだけ GAS への貼り替え＋新しいバージョンのデプロイが要る。
+
+**GAS のデータ取得（`kojiGetData`）**: 列は**見出し名で探す**（`col('案件名')` 等）。
 列の位置を数字で決め打ちしないこと（2026-11-11 KS-2 で、No列の挿入により全列がずれた）。
 見出しが見つからない場合は `ok:false` と「見出しが見つからない: ○○」を返す（黙って空データを返さない）。
+スプレッドシートは `openById`（自家消費案件管理表（2026））で開く。
 GAS 本体は GitHub に入っていない。`GAS_CODE` は利用者がコピーする見本で、本体と同じ内容に保つこと。
 GAS を貼り替えたら「デプロイを管理 → 編集 → 新しいバージョン」でデプロイする（URLが変わらない。「新しいデプロイ」だとURLが変わる）。
 
@@ -52,6 +65,7 @@ GAS を貼り替えたら「デプロイを管理 → 編集 → 新しいバー
 - 手元の remote は旧URL `kiyo819-coder/koji-schedule.git` のまま（GitHub が転送するので push は届く）
 
 ## 変更履歴
+- 2026-11-11 KS-3: 社内限定の GAS ウェブアプリから画面ごと配信する方式に対応（`IN_GAS` / `google.script.run.kojiGetData()`、GAS見本を配信用に差し替え）。詳細は `HANDOFF.md`
 - 2026-11-11 KS-2（`e582357`）: 管理表の A列No挿入による列ずれを修正。GAS見本を見出し名方式に、貼り付けの既定列を現行配置に、先頭タブ消失を修正。詳細は `HANDOFF.md`
 - 2026-07-22 KS-1（`bc817f9`）: ガントバーの色を工務担当に紐付け
 
