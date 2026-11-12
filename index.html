@@ -77,6 +77,10 @@ body{font-family:'Noto Sans JP',sans-serif;background:var(--bg);color:var(--text
 .th-cell.sort-active{color:var(--accent);}
 .th-cell.sort-active::after{content:' ▲';font-size:8px;}
 .th-num{width:30px;justify-content:center;padding:0 0 7px;}
+.th-no{width:54px;}
+.td-no{width:54px;flex-shrink:0;padding:0 6px;border-right:1px solid var(--border);font-family:'DM Mono',monospace;font-size:9px;color:var(--text-sub);white-space:nowrap;overflow:hidden;height:100%;display:flex;align-items:center;}
+.file-link{flex-shrink:0;text-decoration:none;font-size:12px;line-height:1;opacity:.85;}
+.file-link:hover{opacity:1;}
 .th-status{width:50px;}
 .th-name{flex:1;min-width:0;}
 .th-area{width:68px;}
@@ -358,6 +362,7 @@ textarea:focus{border-color:var(--accent);}
     </div>
     <div class="task-panel-header">
       <div class="th-cell th-num">#</div>
+      <div class="th-cell th-no">No</div>
       <div class="th-cell th-status sortable" data-sort="status">状態</div>
       <div class="th-cell th-name">案件名</div>
       <div class="th-cell th-area sortable" data-sort="area">エリア</div>
@@ -476,9 +481,9 @@ textarea:focus{border-color:var(--accent);}
 // C=2(案件名), E=4(受電), G=6(エリア), H=7(営業担当), J=9(工務担当), L=11(工事会社), S=18(契約予定日), T=19(着工予定), U=20(完工予定)
 // 貼り付け取り込みの既定の列（A列から貼った場合。2026-11 の管理表: A=No を挿入後の配置）
 // B=1(状態),C=2(自社担当),F=5(案件名),I=8(受電),K=10(エリア),M=12(工務),O=14(工事会社),Q=16(ランク),W=22(契約),X=23(着工),Y=24(完工)
-const COL = { status:1, sales:2, name:5, power:8, area:10, eng:12, co:14, rank:16, contract:22, start:23, end:24 };
+const COL = { no:0, status:1, sales:2, name:5, power:8, area:10, eng:12, co:14, rank:16, contract:22, start:23, end:24 };
 // 見出し行を一緒に貼った場合は、見出し名から列を決める（列がずれても壊れない）
-const COL_LABELS = { status:'状態', sales:'自社担当', name:'案件名', power:'受電', area:'エリア', eng:'工務担当', co:'工事会社', rank:'ランク', contract:'契約予定日', start:'着工予定', end:'完工予定' };
+const COL_LABELS = { no:'No', status:'状態', sales:'自社担当', name:'案件名', power:'受電', area:'エリア', eng:'工務担当', co:'工事会社', rank:'ランク', contract:'契約予定日', start:'着工予定', end:'完工予定' };
 
 const COLORS = [
   '#3b82f6','#10b981','#f59e0b','#ef4444','#8b5cf6','#06b6d4',
@@ -551,6 +556,7 @@ function kojiGetData() {
       co: col('工事会社'), rank: col('ランク'), contract: col('契約予定日'),
       start: col('着工予定'), end: col('完工予定'),
     };
+    const urlCol = head.indexOf('ファイルパス'); // 任意の列（無くてもエラーにしない）
 
     function toYmd(v) {
       if (!v) return '';
@@ -579,6 +585,7 @@ function kojiGetData() {
         start: start,
         end: end,
         contract: toYmd(row[C.contract]),
+        url: urlCol >= 0 ? String(row[urlCol] || '').trim() : '',
       });
     }
 
@@ -772,6 +779,13 @@ function buildDisplayItems() {
   return items;
 }
 
+// Drive 等のリンク（AQ列「ファイルパス」）。https のみ表示し、別タブで開く
+function fileLink(url){
+  const u=String(url||'').trim();
+  if(!/^https:\/\//.test(u))return '';
+  const safe=u.replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;');
+  return `<a class="file-link" href="${safe}" target="_blank" rel="noopener" title="フォルダを開く" onclick="event.stopPropagation()">📁</a>`;
+}
 function renderLeft() {
   const scroll=document.getElementById('taskScroll');
   if (!tasks.length) {
@@ -788,8 +802,9 @@ function renderLeft() {
     const pw=pwRaw?`<span class="power-badge" style="${pwColor}">${pwRaw}</span>`:`<span class="undecided">未決定</span>`;
     return `<div class="task-row" data-id="${t.id}">
       <div class="td-num">${i+1}</div>
+      <div class="td-no">${t.no||''}</div>
       <div class="td-status">${d(t.status)}</div>
-      <div class="td-dot-name"><div class="dot" style="background:${t.color}"></div><span class="td-name" title="${t.name}">${t.name}</span></div>
+      <div class="td-dot-name"><div class="dot" style="background:${t.color}"></div><span class="td-name" title="${t.name}">${t.name}</span>${fileLink(t.url)}</div>
       <div class="td-cell td-area">${d(t.area)}</div>
       <div class="td-cell td-sales">${d(t.sales)}</div>
       <div class="td-cell td-eng">${t.eng?`<div style="width:8px;height:8px;border-radius:50%;background:${getEngColor(t.eng)};display:inline-block;margin-right:5px;vertical-align:middle"></div>${t.eng}`:`<span class="undecided">未決定</span>`}</div>
@@ -958,6 +973,7 @@ function parseTSV(text){
     if(head.includes(COL_LABELS.name)&&head.includes(COL_LABELS.start)){
       const m={}; let ok=true;
       for(const k in COL_LABELS){const i=head.indexOf(COL_LABELS[k]); if(i<0)ok=false; m[k]=i;}
+      m.url=head.indexOf('ファイルパス'); // 任意の列（無ければ -1）
       if(ok)col=m;
       return;
     }
@@ -966,6 +982,7 @@ function parseTSV(text){
     if(!name||!start||!end||start>end)return;
     const engVal=c[col.eng]?.trim()||'';
     result.push({id:Date.now().toString()+Math.random(),name,start,end,contract:parseDate(c[col.contract]?.trim())||null,
+      no:c[col.no]?.trim()||'', url:col.url>=0?(c[col.url]?.trim()||''):'',
       status:c[col.status]?.trim()||'', area:c[col.area]?.trim()||'', sales:c[col.sales]?.trim()||'',
       eng:engVal, co:c[col.co]?.trim()||'', rank:c[col.rank]?.trim()||'',
       power:c.length>col.power?c[col.power]?.trim()||'':'',
@@ -1023,6 +1040,7 @@ async function syncFromGAS(){
       const engVal=r.eng||'';
       return{
         id:Date.now().toString()+Math.random(),
+        no:r.no||'', url:r.url||'',
         status:r.status||'', name:r.name, area:r.area||'', sales:r.sales||'', eng:engVal, co:r.co||'', rank:r.rank||'', power:r.power||'', contract:parseDate(r.contract)||null,
         start:parseDate(r.start), end:parseDate(r.end), color:getEngColor(engVal)
       };
