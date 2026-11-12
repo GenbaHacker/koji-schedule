@@ -5,7 +5,7 @@
 ## 現在地
 - 本番: https://genbahacker.github.io/koji-schedule/ （GitHub Pages、`GenbaHacker/koji-schedule` main）
 - 社内で使う入口（KS-3 以降）: 管理表の Apps Script（`工事工程表連携用.gs`）のウェブアプリ `/exec` URL。github.io 版は貼り付け取り込み専用
-- push 済み: `e582357` fix: KS-2 ／ `1638a84` docs: KS-2。KS-3 は下記
+- push 済み: `e582357` fix: KS-2 ／ `1638a84` docs: KS-2 ／ `227b0c0` KS-3b ／ `c72ef12` KS-4（2026-11-12 push、Pages built c72ef12、本番 sha256 = HEAD と一致）
 - 担当: 決まった係なし（RULES_agents.md の係表に未登録）。KS-2 は清田の直接指示で工場（@SOLAR）セッションが実施
 
 ## KS-2（2026-11-11）管理表の列ずれ修正
