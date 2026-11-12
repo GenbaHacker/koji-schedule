@@ -419,9 +419,9 @@ textarea:focus{border-color:var(--accent);}
         <button class="btn" style="margin-top:7px" onclick="copyGasCode()">📋 コードをコピー</button>
         <div class="info-box blue" style="margin-top:10px;font-size:10px">
           <strong>手順：</strong><br>
-          1. script.google.com → 新しいプロジェクト（管理表に付いたプロジェクトとは<strong>別</strong>に作る）<br>
-          2. コードを貼り付けて保存（Ctrl+S）→ doGet を一度「実行」して権限を許可<br>
-          3. デプロイ → 新しいデプロイ → ウェブアプリ<br>
+          1. 管理表 → 拡張機能 → Apps Script → <strong>工事工程表連携用.gs</strong> の中身をこのコードに置き換え<br>
+          2. 保存（Ctrl+S）→ kojiGetData を一度「実行」して権限を許可<br>
+          3. デプロイ → デプロイを管理 → 鉛筆 → バージョン「新しいバージョン」（URLは変わらない）<br>
           4. 次のユーザーとして実行：<strong>自分</strong>　アクセス：<strong>株式会社SAWADA 内の全員</strong><br>
           5. 発行された URL を開くと、工程表がデータ付きで表示される（この URL を社内で共有）
         </div>
@@ -511,7 +511,7 @@ const SCALES = {
 };
 
 // ─── GAS Code ─────────────────────────────────────────────────────
-const GAS_CODE = `// koji-schedule 配信用（KS-3）。管理表に付いたプロジェクトとは別の「独立プロジェクト」に置く。
+const GAS_CODE = `// koji-schedule 配信用（KS-3）。管理表の Apps Script の「工事工程表連携用.gs」に置く。
 // デプロイ: 種類=ウェブアプリ ／ 次のユーザーとして実行=自分 ／ アクセスできるユーザー=株式会社SAWADA 内の全員
 // 画面は GitHub Pages の最新版を取得して配信する（push すれば反映。10分キャッシュ）。
 
@@ -994,7 +994,8 @@ function gasErrMsg(e){
           +'　　　http://localhost:8000/index.html を開く'
         : 'ネットワークに接続できません。\n'
           +'・GAS URLが正しいか確認（末尾が /exec であること）\n'
-          +'・GASのデプロイ設定：アクセス権限 = 全員');
+          +'・社内限定（株式会社SAWADA 内の全員）の GAS は、この画面からは呼べません。\n'
+          +'　GAS の URL（/exec）を直接開いて使ってください。');
   }
   return e.message;
 }
@@ -1014,7 +1015,7 @@ async function syncFromGAS(){
     }else{
       const res=await fetch(gasUrl);
       const ct=res.headers.get('content-type')||'';
-      if(!ct.includes('application/json'))throw new Error('JSONが返されませんでした。GASのデプロイ設定を確認してください（アクセス：全員）');
+      if(!ct.includes('application/json'))throw new Error('JSONが返されませんでした。社内限定の GAS は、この画面からは呼べません。GAS の URL（/exec）を直接開いてください');
       json=await res.json();
     }
     if(!json||!json.ok)throw new Error((json&&json.error)||'Error');

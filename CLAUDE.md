@@ -38,12 +38,15 @@ Everything lives in `index.html` as a single self-contained file with three sect
 **配信方式（KS-3, 2026-11-11〜）**: 社内で使う本番は **GAS ウェブアプリが画面ごと配信する**。
 - eco-sawada.com の Workspace 設定で、ウェブアプリの公開範囲に「全員」を選べない（「自分のみ」「株式会社SAWADA 内の全員」だけ）。
   そのため github.io から GAS を `fetch` すると、ログイン画面に転送されて CORS で失敗する（Failed to fetch）。
-- 解決: 独立した Apps Script プロジェクト（管理表に紐づくプロジェクトとは**別**）で
+- 解決: 管理表に紐づく Apps Script プロジェクトの **`工事工程表連携用.gs`** に置く（2026-11-12 清田決定）。
   `doGet` が GitHub Pages の index.html を `UrlFetchApp` で取得（10分キャッシュ）して `HtmlService` で返す。
   画面は `google.script.run.kojiGetData()` でデータを取る（`IN_GAS` で判定）。
   デプロイ設定: 次のユーザーとして実行=**自分** ／ アクセス=**株式会社SAWADA 内の全員**。
-- 別プロジェクトにする理由: `google.script.run` は同じプロジェクトの全関数を呼べる。管理表のプロジェクト（自動採番.gs 等）に
-  置くと、社内の誰でも清田の権限でそれらを呼べてしまう。名前の衝突も避けられる。
+- 置き場所の決定: 当初は独立プロジェクトを推奨したが、清田が「他のGASがあると紛らわしい」として既存プロジェクトへの置き換えを選んだ。
+  **承知のうえのリスク**: `google.script.run` は同じプロジェクトの全関数を呼べるため、社内の人が開発ツールを使えば
+  `sortByTimestamp`（降順表示.gs）や 自動採番.gs・受注管理一覧.gs の関数を清田の権限で実行できる。
+  同じプロジェクトに関数を足すときは、画面から呼ばれて困るものは名前の末尾を `_` にする（`_` 付きは google.script.run から呼べない）。
+  `doGet` / `kojiGetData` と同名の関数を他のファイルに作らないこと。
 - github.io 版（GAS外）は従来どおり「GAS連携」URL への fetch と貼り付け取り込み。社内限定の GAS には届かないので、貼り付け専用と考える。
 - index.html を push すれば、GAS 側は最大10分で新しい画面になる（GAS の再デプロイは不要）。`GAS_CODE` を変えたときだけ GAS への貼り替え＋新しいバージョンのデプロイが要る。
 
@@ -65,6 +68,7 @@ GAS を貼り替えたら「デプロイを管理 → 編集 → 新しいバー
 - 手元の remote は旧URL `kiyo819-coder/koji-schedule.git` のまま（GitHub が転送するので push は届く）
 
 ## 変更履歴
+- 2026-11-12 KS-3b: 配信用 GAS の置き場所を既存プロジェクトの `工事工程表連携用.gs` に変更（清田決定）。設定手順・見本コメント・github.io 版のエラー文（「アクセス=全員」の誤案内）を修正
 - 2026-11-11 KS-3: 社内限定の GAS ウェブアプリから画面ごと配信する方式に対応（`IN_GAS` / `google.script.run.kojiGetData()`、GAS見本を配信用に差し替え）。詳細は `HANDOFF.md`
 - 2026-11-11 KS-2（`e582357`）: 管理表の A列No挿入による列ずれを修正。GAS見本を見出し名方式に、貼り付けの既定列を現行配置に、先頭タブ消失を修正。詳細は `HANDOFF.md`
 - 2026-07-22 KS-1（`bc817f9`）: ガントバーの色を工務担当に紐付け

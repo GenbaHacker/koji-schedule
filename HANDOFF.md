@@ -1,10 +1,10 @@
 # HANDOFF — koji-schedule（工事工程表）
 
-最終更新: 2026-11-11
+最終更新: 2026-11-12
 
 ## 現在地
 - 本番: https://genbahacker.github.io/koji-schedule/ （GitHub Pages、`GenbaHacker/koji-schedule` main）
-- 社内で使う入口（KS-3 以降）: 独立した Apps Script ウェブアプリの URL（清田がデプロイ後に記入）。github.io 版は貼り付け取り込み専用
+- 社内で使う入口（KS-3 以降）: 管理表の Apps Script（`工事工程表連携用.gs`）のウェブアプリ `/exec` URL。github.io 版は貼り付け取り込み専用
 - push 済み: `e582357` fix: KS-2 ／ `1638a84` docs: KS-2。KS-3 は下記
 - 担当: 決まった係なし（RULES_agents.md の係表に未登録）。KS-2 は清田の直接指示で工場（@SOLAR）セッションが実施
 
@@ -83,14 +83,17 @@ doGet 模擬: {"fetched":1,"url":"https://genbahacker.github.io/koji-schedule/",
 ```
 本物の GAS 上での動作は未検査（清田のデプロイ後に施主検査）。
 
+## KS-3b（2026-11-12）置き場所を既存プロジェクトに変更
+- 清田決定: 独立プロジェクトは作らず、管理表の Apps Script の `工事工程表連携用.gs` を配信用コードに置き換える（「他のGASがあると紛らわしい」）。
+- 承知のうえのリスク: 同じプロジェクトの `sortByTimestamp`・自動採番・受注管理一覧の関数も、社内の人が開発ツールから清田の権限で呼べる（CLAUDE.md に記載）。
+- index.html: 設定手順を置き換え方式に、見本コードの先頭コメントを修正。github.io 版のエラー文の「アクセス=全員」（社内では選べない）を「/exec を直接開く」案内に修正。
+
 ## 未完了（清田の作業）
-- [ ] **独立した Apps Script プロジェクトを作ってデプロイ**（index.html の push 後に行う。doGet が GitHub Pages を取りに行くため）
-  1. script.google.com → 新しいプロジェクト（名前例: koji-schedule 配信）
-  2. 本番画面「GAS連携 → GASの設定方法」の見本コードを貼り付けて保存
-  3. 関数 `kojiGetData` を選んで「実行」→ 権限を許可（スプレッドシート・外部URL取得）。実行ログで `ok: true` を確認
-  4. デプロイ → 新しいデプロイ → ウェブアプリ／実行=自分／アクセス=株式会社SAWADA 内の全員 → URL を社内で共有
-  5. その URL を開いて、工程表がデータ付きで表示されるか目視（施主検査）
-- [ ] 管理表に付いたプロジェクトの `工事工程表連携用.gs`（KS-2 で貼った doGet）とそのデプロイは不要になる。消すかどうかは清田判断（消す前に他の用途が無いか確認）
+- [ ] **`工事工程表連携用.gs` を置き換えてデプロイ更新**
+  1. 管理表 → 拡張機能 → Apps Script → `工事工程表連携用.gs` の中身を見本コードに置き換えて保存
+  2. 関数 `kojiGetData` を選んで「実行」→ 権限を許可（外部URL取得が増える）。エラーが出なければOK
+  3. デプロイ → デプロイを管理 → 鉛筆 → 新しいバージョン／実行=自分／アクセス=株式会社SAWADA 内の全員（URLは変わらない）
+  4. `/exec` の URL を直接開いて、工程表がデータ付きで表示されるか目視（施主検査）
 
 ## 残課題（未着手）
 - 手元 remote URL を `GenbaHacker/koji-schedule.git` に更新するか
