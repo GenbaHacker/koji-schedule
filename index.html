@@ -525,7 +525,7 @@ function doGet(e) {
   var cache = CacheService.getScriptCache();
   var html = cache.get('koji_html');
   if (!html) {
-    html = UrlFetchApp.fetch(PAGE_URL).getContentText('UTF-8');
+    html = UrlFetchApp.fetch(PAGE_URL + '?t=' + Date.now()).getContentText('UTF-8'); // ?t= で Pages 側のキャッシュを避ける
     try { cache.put('koji_html', html, 600); } catch (err) { /* 100KB超はキャッシュしない */ }
   }
   return HtmlService.createHtmlOutput(html)
